@@ -65,6 +65,36 @@ async function uploadFile(bucket, filePath, key){
     }
 }
 
+// Deletes files with regex filter
+async function deleteFilesWithFilter(bucket, prefix = '', filterRegex = '') {
+    try {
+        const params = {
+            Bucket: bucket,
+            Prefix: prefix
+        };
+        const data = await s3.listObjectsV2(params).promise();
+        const regex = new RegExp(filterRegex);
+
+        const deleteParams = {
+            Bucket: bucket,
+            Delete: {
+                Objects: data.Contents
+                    .filter(item => regex.test(item.Key))
+                    .map(item => ({ Key: item.Key }))
+            }
+        };
+
+        if (deleteParams.Delete.Objects.length > 0) {
+            await s3.deleteObjects(deleteParams).promise();
+            console.log('Files deleted successfully.');
+        } else {
+            console.log('No files match the filter.');
+        }
+    } catch (err) {
+        console.error('Error deleting files with filter:', err);
+    }
+}
+
 // Argument parsing
 if (process.argv[2] === 'list') {
     const bucket = process.argv[3];
@@ -92,9 +122,19 @@ if (process.argv[2] === 'list') {
         process.exit(1);
     }
     uploadFile(bucket, filePath, key);
+} else if (process.argv[2] === 'delete') {
+    const bucket = process.argv[3];
+    const prefix = process.argv[4] || '';
+    const filter = process.argv[5] || '';
+    if (!bucket || !filter) {
+        console.error('Bucket name and filter are required');
+        process.exit(1);
+    }
+    deleteFilesWithFilter(bucket, prefix, filter);
 } else {
     console.log('Usage:');
     console.log('  node index.js list <bucket-name> [prefix]');
     console.log('  node index.js list-filter <bucket-name> [prefix] <filter>');
     console.log('  node index.js upload <bucket-name> <file-path> <key>');
+    console.log('  node index.js delete <bucket-name> [prefix] <filter>');
 }
